@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using FluentValidation.Results;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.MediaFiles;
 
 namespace NzbDrone.Core.Notifications.Kavita;
 
@@ -23,26 +24,22 @@ public class Kavita : NotificationBase<KavitaSettings>
 
     public override void OnReleaseImport(BookDownloadMessage message)
     {
-        var allPaths = message.BookFiles.Select(v => v.Path).Distinct();
-        var path = Directory.GetParent(allPaths.First())?.FullName;
-        Notify(path);
+        Notify(GetBookFolder(message.BookFiles));
     }
 
     public override void OnBookDelete(BookDeleteMessage deleteMessage)
     {
-        var allPaths = deleteMessage.Book.BookFiles.Select(v => v.Path).Distinct();
-        var path = Directory.GetParent(allPaths.First())?.FullName;
-        Notify(path);
+        Notify(GetBookFolder(deleteMessage.Book?.BookFiles));
     }
 
     public override void OnBookFileDelete(BookFileDeleteMessage message)
     {
-        Notify(Directory.GetParent(message.BookFile.Path)?.FullName);
+        Notify(GetBookFolder(new[] { message.BookFile }));
     }
 
     public override void OnBookRetag(BookRetagMessage message)
     {
-        Notify(Directory.GetParent(message.BookFile.Path)?.FullName);
+        Notify(GetBookFolder(new[] { message.BookFile }));
     }
 
     public override string Name => "Kavita";
@@ -54,6 +51,16 @@ public class Kavita : NotificationBase<KavitaSettings>
         failures.AddIfNotNull(_kavitaService.Test(Settings, "Success! Kavita has been successfully configured!"));
 
         return new ValidationResult(failures);
+    }
+
+    // A book that never had a file (author refresh prunes plenty of those) has no folder for Kavita to
+    // scan. Returning null here instead of throwing keeps Chaptarr from recording a failed notification
+    // and backing the Kavita connection off.
+    private static string GetBookFolder(IEnumerable<BookFile> bookFiles)
+    {
+        var firstPath = bookFiles?.Select(v => v?.Path).FirstOrDefault(p => p.IsNotNullOrWhiteSpace());
+
+        return firstPath == null ? null : Directory.GetParent(firstPath)?.FullName;
     }
 
     private void Notify(string folderPath)
