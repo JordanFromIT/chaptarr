@@ -25,24 +25,24 @@ public class Kavita : NotificationBase<KavitaSettings>
     {
         var allPaths = message.BookFiles.Select(v => v.Path).Distinct();
         var path = Directory.GetParent(allPaths.First())?.FullName;
-        Notify(Settings, BOOK_DOWNLOADED_TITLE_BRANDED, path);
+        Notify(path);
     }
 
     public override void OnBookDelete(BookDeleteMessage deleteMessage)
     {
         var allPaths = deleteMessage.Book.BookFiles.Select(v => v.Path).Distinct();
         var path = Directory.GetParent(allPaths.First())?.FullName;
-        Notify(Settings, BOOK_FILE_DELETED_TITLE_BRANDED, path);
+        Notify(path);
     }
 
     public override void OnBookFileDelete(BookFileDeleteMessage message)
     {
-        Notify(Settings, BOOK_FILE_DELETED_TITLE_BRANDED, Directory.GetParent(message.BookFile.Path)?.FullName);
+        Notify(Directory.GetParent(message.BookFile.Path)?.FullName);
     }
 
     public override void OnBookRetag(BookRetagMessage message)
     {
-        Notify(Settings, BOOK_RETAGGED_TITLE_BRANDED, Directory.GetParent(message.BookFile.Path)?.FullName);
+        Notify(Directory.GetParent(message.BookFile.Path)?.FullName);
     }
 
     public override string Name => "Kavita";
@@ -56,13 +56,15 @@ public class Kavita : NotificationBase<KavitaSettings>
         return new ValidationResult(failures);
     }
 
-    private void Notify(KavitaSettings settings, string header, string message)
+    private void Notify(string folderPath)
     {
         try
         {
-            if (Settings.Notify)
+            // Kavita's scan-folder endpoint takes the folder to scan and nothing else. Prefixing it with a
+            // notification title makes Kavita answer 500 and the new book only shows up on its nightly scan.
+            if (Settings.Notify && folderPath.IsNotNullOrWhiteSpace())
             {
-                _kavitaService.Notify(Settings, $"{header} - {message}");
+                _kavitaService.Notify(Settings, folderPath);
             }
         }
         catch (SocketException ex)
