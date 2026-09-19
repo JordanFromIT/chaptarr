@@ -3,6 +3,8 @@ using System.IO;
 using FluentValidation.Results;
 using NLog;
 using NUnit.Framework;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Notifications;
 using NzbDrone.Core.Notifications.Kavita;
@@ -82,6 +84,52 @@ namespace Chaptarr.Core.Test.Notifications.Kavita
             Assert.That(service.FolderPaths, Has.Count.EqualTo(1));
             Assert.That(service.FolderPaths[0], Does.Not.Contain("Chaptarr"));
             Assert.That(service.FolderPaths[0], Does.Not.Contain("Book Downloaded"));
+        }
+
+        [Test]
+        public void should_send_kavita_only_the_book_folder_when_a_book_with_files_is_deleted()
+        {
+            var service = new RecordingKavitaService();
+            var book = new Book
+            {
+                Title = "Catch-22",
+                LazyBookFiles = new LazyLoaded<List<BookFile>>(new List<BookFile> { new BookFile { Path = BookFilePath } })
+            };
+
+            CreateSubject(service).OnBookDelete(new BookDeleteMessage(book, false));
+
+            Assert.That(service.FolderPaths, Is.EqualTo(new[] { BookFolder }));
+        }
+
+        // Refreshing an author prunes book rows that never had a file. That raised "Sequence contains
+        // no elements", which Chaptarr records as a failed notification and answers by switching the
+        // Kavita connection off for a while.
+        [Test]
+        public void should_do_nothing_when_a_deleted_book_never_had_files()
+        {
+            var service = new RecordingKavitaService();
+            var book = new Book { Title = "Closing Time", LazyBookFiles = new LazyLoaded<List<BookFile>>(new List<BookFile>()) };
+
+            Assert.DoesNotThrow(() => CreateSubject(service).OnBookDelete(new BookDeleteMessage(book, false)));
+            Assert.That(service.FolderPaths, Is.Empty);
+        }
+
+        [Test]
+        public void should_do_nothing_when_a_deleted_book_has_no_file_list_at_all()
+        {
+            var service = new RecordingKavitaService();
+
+            Assert.DoesNotThrow(() => CreateSubject(service).OnBookDelete(new BookDeleteMessage(new Book { Title = "Closing Time" }, false)));
+            Assert.That(service.FolderPaths, Is.Empty);
+        }
+
+        [Test]
+        public void should_do_nothing_when_an_import_message_carries_no_files()
+        {
+            var service = new RecordingKavitaService();
+
+            Assert.DoesNotThrow(() => CreateSubject(service).OnReleaseImport(new BookDownloadMessage { BookFiles = new List<BookFile>() }));
+            Assert.That(service.FolderPaths, Is.Empty);
         }
 
         [Test]
