@@ -257,7 +257,17 @@ namespace Chaptarr.Core.Test.Books
             Name = "Matt Dinniman",
             SyncMonitoredAcrossFormats = sync,
             AudiobookRootFolderPath = "/audiobooks",
-            EbookRootFolderPath = "/ebooks"
+            EbookRootFolderPath = "/ebooks",
+
+            // prod/hmserver only: this fork's Author model carries AudiobookMonitorExisting /
+            // EbookMonitorExisting (0=None, 1=All, 2=Selected), and CanEnableMonitoringForMediaType
+            // additionally gates format-sync on these being > 0. Clean upstream develop - what this
+            // test's PR branch targets - has no such property, so this pair only exists on the
+            // cherry-picked copy of this file. Matches the real author it's modelled on (Matt
+            // Dinniman, both set to 2 / Selected) so this test proves the fix against what
+            // production actually gates on, not just against upstream's simpler rule.
+            AudiobookMonitorExisting = 2,
+            EbookMonitorExisting = 2
         };
 
         // An existing, unmonitored sibling row - exactly what a refresh leaves behind for a book
